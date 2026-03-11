@@ -1,221 +1,301 @@
 const canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d");
 
-// Obtiene las dimensiones de la pantalla actual
-const window_height = window.innerHeight;
-const window_width = window.innerWidth;
+// Tamaño del canvas
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-canvas.height = window_height;
-canvas.width = window_width;
-
-// Color de fondo del canvas
-canvas.style.background = "#ff8";
+const width = canvas.width;
+const height = canvas.height;
 
 /*
-Clase Circle
-Representa un círculo que se mueve dentro del canvas
-Se añadieron atributos y métodos para manejar colisiones
+Contador de objetos eliminados
 */
-class Circle {
-
-    constructor(x, y, radius, color, text, speed) {
-
-        // Posición inicial
-        this.posX = x;
-        this.posY = y;
-
-        // Radio del círculo
-        this.radius = radius;
-
-        // Color original
-        this.originalColor = color;
-
-        // Color actual
-        this.color = color;
-
-        // Texto dentro del círculo
-        this.text = text;
-
-        // Velocidad del círculo
-        this.speed = speed;
-
-        // Dirección inicial de movimiento
-        this.dx = (Math.random() * 2 - 1) * this.speed;
-        this.dy = (Math.random() * 2 - 1) * this.speed;
-    }
-
-    /*
-    Método draw()
-    Dibuja el círculo y su etiqueta en el canvas
-    */
-    draw(context) {
-
-        context.beginPath();
-
-        context.strokeStyle = this.color;
-        context.lineWidth = 2;
-
-        context.arc(this.posX, this.posY, this.radius, 0, Math.PI * 2);
-        context.stroke();
-
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.font = "14px Arial";
-        context.fillStyle = "black";
-        context.fillText(this.text, this.posX, this.posY);
-
-        context.closePath();
-    }
-
-    /*
-    Método move()
-    Actualiza la posición del círculo
-    También detecta rebote con los bordes del canvas
-    */
-    move() {
-
-        this.posX += this.dx;
-        this.posY += this.dy;
-
-        // Rebote horizontal
-        if (this.posX + this.radius > window_width || this.posX - this.radius < 0) {
-            this.dx = -this.dx;
-        }
-
-        // Rebote vertical
-        if (this.posY + this.radius > window_height || this.posY - this.radius < 0) {
-            this.dy = -this.dy;
-        }
-    }
-
-    /*
-    Método checkCollision()
-    Detecta colisión entre dos círculos
-    usando la fórmula de distancia entre centros
-    También cambia la dirección del movimiento
-    */
-    checkCollision(otherCircle) {
-
-        // Diferencia entre centros
-        let dx = this.posX - otherCircle.posX;
-        let dy = this.posY - otherCircle.posY;
-
-        /*
-        Fórmula de distancia:
-        d = √((x2-x1)^2 + (y2-y1)^2)
-        */
-        let distance = Math.sqrt(dx * dx + dy * dy);
-
-        /*
-        Hay colisión si la distancia entre centros
-        es menor que la suma de los radios
-        */
-        if (distance < this.radius + otherCircle.radius) {
-
-            // Flash azul durante la colisión
-            this.color = "#0000FF";
-            otherCircle.color = "#0000FF";
-
-            /*
-            Cambio de dirección después de la colisión
-            Ambos círculos rebotan en dirección contraria
-            */
-            this.dx = -this.dx;
-            this.dy = -this.dy;
-
-            otherCircle.dx = -otherCircle.dx;
-            otherCircle.dy = -otherCircle.dy;
-
-        }
-
-    }
-
-    /*
-    Método update()
-    Ejecuta movimiento y dibujo
-    */
-    update(context) {
-
-        this.move();
-        this.draw(context);
-
-    }
-
-}
-
-// Array que almacenará todos los círculos
-let circles = [];
+let eliminadas = 0;
 
 /*
-Función generateCircles(n)
-Genera N círculos con valores aleatorios
-Velocidad entre 1 y 5 unidades
+Arrays principales
 */
-function generateCircles(n) {
+let objects = [];
+let explosions = [];
 
-    for (let i = 0; i < n; i++) {
+/*
+Sprite del objeto (estrella)
+*/
+let starImg = new Image();
+starImg.src = "https://cdn-icons-png.flaticon.com/512/1828/1828884.png";
 
-        // Radio entre 20 y 40
-        let radius = Math.random() * 20 + 20;
+/*
+Clase Star
+Representa cada objeto que cae desde arriba
+*/
+class Star{
 
-        // Posición aleatoria
-        let x = Math.random() * (window_width - radius * 2) + radius;
-        let y = Math.random() * (window_height - radius * 2) + radius;
+constructor(x,y,size,speed){
 
-        // Color aleatorio
-        let color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+this.posX = x;
+this.posY = y;
 
-        // Velocidad entre 1 y 5
-        let speed = Math.random() * 4 + 1;
-
-        // Texto del círculo
-        let text = `C${i + 1}`;
-
-        circles.push(new Circle(x, y, radius, color, text, speed));
-    }
+this.size = size;
+this.speed = speed;
 
 }
 
 /*
-Función animate()
-Se ejecuta continuamente para actualizar la animación
+Dibuja el sprite
 */
-function animate() {
+draw(){
 
-    // Limpiar canvas
-    ctx.clearRect(0, 0, window_width, window_height);
+ctx.drawImage(
+starImg,
+this.posX,
+this.posY,
+this.size,
+this.size
+);
 
-    /*
-    Restaurar color original antes de revisar colisiones
-    Esto permite que el azul solo aparezca como "flash"
-    */
-    circles.forEach(circle => {
-        circle.color = circle.originalColor;
-    });
-
-    /*
-    Detección de colisiones colectivas
-    Cada círculo se compara con los demás
-    */
-    for (let i = 0; i < circles.length; i++) {
-
-        for (let j = i + 1; j < circles.length; j++) {
-
-            circles[i].checkCollision(circles[j]);
-
-        }
-
-    }
-
-    // Actualizar movimiento y dibujo
-    circles.forEach(circle => {
-        circle.update(ctx);
-    });
-
-    // Repetir animación
-    requestAnimationFrame(animate);
 }
 
-//Generar 20 círculos e iniciar animación
-generateCircles(20);
+/*
+Movimiento de caída
+*/
+move(){
+
+this.posY += this.speed;
+
+/*
+Si sale del canvas vuelve a iniciar arriba
+*/
+if(this.posY > height){
+
+this.posY = -this.size;
+this.posX = Math.random()*width;
+
+}
+
+}
+
+/*
+Actualizar objeto
+*/
+update(){
+
+this.move();
+this.draw();
+
+}
+
+/*
+Detectar clic
+*/
+isClicked(mouseX,mouseY){
+
+return(
+
+mouseX > this.posX &&
+mouseX < this.posX + this.size &&
+mouseY > this.posY &&
+mouseY < this.posY + this.size
+
+);
+
+}
+
+}
+
+/*
+Clase Explosion
+Genera efecto visual cuando se destruye un objeto
+*/
+class Explosion{
+
+constructor(x,y){
+
+this.x = x;
+this.y = y;
+
+this.radius = 10;
+this.alpha = 1;
+
+}
+
+draw(){
+
+ctx.beginPath();
+
+ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+
+ctx.fillStyle = "rgba(255,200,0,"+this.alpha+")";
+
+ctx.fill();
+
+ctx.closePath();
+
+}
+
+update(){
+
+this.radius += 2;
+this.alpha -= 0.05;
+
+this.draw();
+
+}
+
+}
+
+/*
+Generar objetos que caen
+*/
+function generateObjects(n){
+
+for(let i=0;i<n;i++){
+
+let size = Math.random()*40+40;
+
+let x = Math.random()*width;
+
+let y = Math.random()*-height;
+
+let speed = Math.random()*2+1;
+
+objects.push(
+new Star(x,y,size,speed)
+);
+
+}
+
+}
+
+/*
+Evento de clic del mouse
+Detecta mouseX y mouseY
+*/
+canvas.addEventListener("click",function(e){
+
+let rect = canvas.getBoundingClientRect();
+
+let mouseX = e.clientX - rect.left;
+let mouseY = e.clientY - rect.top;
+
+for(let i=0;i<objects.length;i++){
+
+if(objects[i].isClicked(mouseX,mouseY)){
+
+/* crear explosión */
+explosions.push(
+new Explosion(
+objects[i].posX + objects[i].size/2,
+objects[i].posY + objects[i].size/2
+)
+);
+
+/* eliminar objeto */
+objects.splice(i,1);
+
+eliminadas++;
+
+/* generar nuevo objeto */
+generateObjects(1);
+
+break;
+
+}
+
+}
+
+});
+
+/*
+Actualizar velocidad según puntaje
+*/
+function updateDifficulty(){
+
+objects.forEach(obj=>{
+
+if(eliminadas>10){
+
+obj.speed += 0.01;
+
+}
+
+if(eliminadas>15){
+
+obj.speed += 0.03;
+
+}
+
+});
+
+}
+
+/*
+Dibujar contador
+*/
+function drawScore(){
+
+ctx.fillStyle="white";
+ctx.font="22px Arial";
+
+ctx.fillText(
+"Eliminadas: "+eliminadas,
+width-180,
+40
+);
+
+}
+
+/*
+Dibujar fondo tipo cielo
+*/
+function drawBackground(){
+
+let gradient = ctx.createLinearGradient(0,0,0,height);
+
+gradient.addColorStop(0,"#020024");
+gradient.addColorStop(0.5,"#090979");
+gradient.addColorStop(1,"#00d4ff");
+
+ctx.fillStyle = gradient;
+ctx.fillRect(0,0,width,height);
+
+}
+
+/*
+Animación principal
+*/
+function animate(){
+
+drawBackground();
+
+objects.forEach(obj=>{
+obj.update();
+});
+
+explosions.forEach((exp,index)=>{
+
+exp.update();
+
+if(exp.alpha <=0){
+explosions.splice(index,1);
+}
+
+});
+
+updateDifficulty();
+
+drawScore();
+
+requestAnimationFrame(animate);
+
+}
+
+/*
+Objetos iniciales
+*/
+generateObjects(12);
+
+/*
+Iniciar animación
+*/
 animate();
